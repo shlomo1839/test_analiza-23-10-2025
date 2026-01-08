@@ -1,0 +1,203 @@
+// ==========================================
+// FILE: package.json
+// ==========================================
+{
+  "name": "airport-system",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test"
+  }
+}
+
+// ==========================================
+// FILE: Ticket.js
+// ==========================================
+export class Ticket {
+    constructor(price) {
+        this.ticketNumber = Math.floor(Math.random() * 10000);
+        this.price = price;
+        this.ownerName = null;
+    }
+}
+
+export class RegularTicket extends Ticket {
+    constructor(price) {
+        super(price);
+        this.type = 'regular';
+    }
+}
+
+export class VIPTicket extends Ticket {
+    constructor(price) {
+        super(price);
+        this.type = 'vip';
+        this.benefits = ['Free alcohol', 'Free food', 'Hot towels'];
+    }
+}
+
+// ==========================================
+// FILE: Flight.js
+// ==========================================
+import { RegularTicket, VIPTicket } from './Ticket.js';
+
+export class Flight {
+    constructor(name, airline, flightNumber, maxPassengers, regularPrice, vipPrice) {
+        this.name = name;
+        this.airline = airline;
+        this.flightNumber = flightNumber;
+        this.maxPassengers = maxPassengers;
+        this.regularPrice = regularPrice;
+        this.vipPrice = vipPrice;
+        this.tickets = [];
+
+        this.initTickets();
+    }
+
+    initTickets() {
+        const vipCount = Math.ceil(this.maxPassengers * 0.1);
+        const regularCount = this.maxPassengers - vipCount;
+
+        for (let i = 0; i < vipCount; i++) {
+            this.tickets.push(new VIPTicket(this.vipPrice));
+        }
+
+        for (let i = 0; i < regularCount; i++) {
+            this.tickets.push(new RegularTicket(this.regularPrice));
+        }
+    }
+
+    getAvailableTicket(type) {
+        return this.tickets.find(ticket => ticket.type === type && ticket.ownerName === null);
+    }
+}
+
+// ==========================================
+// FILE: Passenger.js
+// ==========================================
+class Passenger {
+    constructor(name, id, money) {
+        this.name = name;
+        this.id = id;
+        this.money = money;
+    }
+
+    buyTicket(flight, ticketType) {
+        const ticket = flight.getAvailableTicket(ticketType);
+
+        if (!ticket) {
+            return false;
+        }
+
+        const priceToPay = this.calculatePrice(ticket.price, ticketType);
+
+        if (this.money < priceToPay) {
+            return false;
+        }
+
+        this.money -= priceToPay;
+        ticket.ownerName = this.name;
+        return true;
+    }
+}
+
+export class StudentPassenger extends Passenger {
+    constructor(name, id, money, schoolName) {
+        super(name, id, money);
+        this.schoolName = schoolName;
+    }
+
+    calculatePrice(originalPrice, ticketType) {
+        if (ticketType === 'regular') {
+            return originalPrice * 0.9;
+        }
+        return originalPrice;
+    }
+}
+
+export class RegularPassenger extends Passenger {
+    constructor(name, id, money, workplace, knowsEmployee) {
+        super(name, id, money);
+        this.workplace = workplace;
+        this.knowsEmployee = knowsEmployee;
+    }
+
+    calculatePrice(originalPrice, ticketType) {
+        if (this.knowsEmployee) {
+            if (ticketType === 'regular') return originalPrice * 0.8;
+            if (ticketType === 'vip') return originalPrice * 0.85;
+        }
+        return originalPrice;
+    }
+}
+
+// ==========================================
+// FILE: Airport.js
+// ==========================================
+import { Flight } from './Flight.js';
+
+export class Airport {
+    constructor() {
+        this.flights = [];
+        this.initFlights();
+    }
+
+    initFlights() {
+        const flight1 = new Flight("Eilat Express", "Arkia", "IZ888", 100, 200, 500);
+        const flight2 = new Flight("NY Direct", "El Al", "LY001", 300, 1000, 2500);
+        const flight3 = new Flight("London Morning", "British", "BA165", 150, 800, 1600);
+
+        this.flights.push(flight1, flight2, flight3);
+    }
+}
+
+// ==========================================
+// FILE: index.js
+// ==========================================
+import { Airport } from './Airport.js';
+import { StudentPassenger, RegularPassenger } from './Passenger.js';
+
+const benGurion = new Airport();
+
+const student = new StudentPassenger("Dan Student", "12345", 1000, "Tel Aviv Uni");
+const regular = new RegularPassenger("Rina Regular", "67890", 2000, "Google", true);
+
+const selectedFlight = benGurion.flights[0]; 
+
+regular.buyTicket(selectedFlight, 'regular');
+student.buyTicket(selectedFlight, 'vip');
+
+// ==========================================
+// FILE: airport.test.js
+// ==========================================
+import { describe, it } from 'node:test';
+import assert from 'node:assert';
+import { Flight } from './Flight.js';
+import { RegularPassenger } from './Passenger.js';
+
+describe('Ticket Purchase Flow', () => {
+
+    it('should return false when passenger does not have enough money', () => {
+        const flight = new Flight("Test Flight", "Test Air", "T1", 10, 100, 200);
+        const poorPassenger = new RegularPassenger("Poor Guy", "111", 50, "None", false);
+        
+        const result = poorPassenger.buyTicket(flight, 'regular');
+
+        assert.strictEqual(result, false);
+    });
+
+    it('should return true and update money/owner when passenger has enough money', () => {
+        const ticketPrice = 100;
+        const flight = new Flight("Test Flight", "Test Air", "T1", 10, ticketPrice, 200);
+        const richPassenger = new RegularPassenger("Rich Guy", "222", 500, "None", false);
+        
+        const result = richPassenger.buyTicket(flight, 'regular');
+
+        assert.strictEqual(result, true);
+        assert.strictEqual(richPassenger.money, 400);
+
+        const soldTicket = flight.tickets.find(t => t.ownerName === "Rich Guy");
+        assert.ok(soldTicket);
+    });
+});
